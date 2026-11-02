@@ -8,8 +8,12 @@ import {
   applyRematch,
   applyStart,
   buildStatePayload,
+  classifyJoin,
+  consumeRateLimit,
   emptyRoomState,
+  isOversizedMessage,
   isPlayerIdTakenByAnotherSocket,
+  parseClientMessage,
   type Question,
   type RoomState,
 } from "./game";
@@ -20,15 +24,9 @@ export interface Env {
 }
 
 interface SocketAttachment {
-  playerId: string;
+  playerId?: string;
+  rateLimitTimestamps?: number[];
 }
-
-type ClientMessage =
-  | { type: "join"; playerId: string; name: string }
-  | { type: "ready" }
-  | { type: "start" }
-  | { type: "answer"; choiceId: string }
-  | { type: "rematch" };
 
 export class Room implements DurableObject {
   private state: RoomState = emptyRoomState();
@@ -107,16 +105,24 @@ export class Room implements DurableObject {
   ): Promise<void> {
     await this.ensureInit();
 
+    const byteLength =
+      typeof message === "string" ? message.length : message.byteLength;
+    if (isOversizedMessage(byteLength)) return;
     if (typeof message !== "string") return;
-    let parsed: ClientMessage;
-    try {
-      parsed = JSON.parse(message) as ClientMessage;
-    } catch {
-      return;
-    }
 
-    const attachment = ws.deserializeAttachment() as SocketAttachment | null;
     const nowMs = Date.now();
+    let attachment = ws.deserializeAttachment() as SocketAttachment | null;
+    const rate = consumeRateLimit(attachment?.rateLimitTimestamps ?? [], nowMs);
+    ws.serializeAttachment({
+      playerId: attachment?.playerId,
+      rateLimitTimestamps: rate.timestamps,
+    });
+    if (!rate.allowed) return;
+
+    const parsed = parseClientMessage(message);
+    if (!parsed) return;
+
+    attachment = ws.deserializeAttachment() as SocketAttachment | null;
 
     switch (parsed.type) {
       case "join": {
@@ -135,11 +141,28 @@ export class Room implements DurableObject {
         ) {
           break;
         }
+        const joinKind = classifyJoin(this.state, {
+          playerId: parsed.playerId,
+          name: parsed.name,
+        });
+        if (joinKind === "bad_name") break;
+        if (joinKind === "full") {
+          try {
+            ws.send(JSON.stringify({ type: "error", code: "room_full" }));
+            ws.close();
+          } catch {
+            // socket may already be closing
+          }
+          break;
+        }
         this.state = applyJoin(this.state, {
           playerId: parsed.playerId,
           name: parsed.name,
         });
-        ws.serializeAttachment({ playerId: parsed.playerId } satisfies SocketAttachment);
+        ws.serializeAttachment({
+          playerId: parsed.playerId,
+          rateLimitTimestamps: attachment?.rateLimitTimestamps ?? rate.timestamps,
+        });
         await this.persist();
         await this.broadcast();
         break;

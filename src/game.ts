@@ -56,6 +56,92 @@ export interface RoomState {
 export const ROUND_COUNT = 10;
 export const ROUND_SECONDS = 15;
 export const REVEAL_SECONDS = 5;
+export const MAX_PLAYERS = 8;
+export const MAX_MESSAGE_BYTES = 2048;
+export const RATE_LIMIT_COUNT = 10;
+export const RATE_LIMIT_WINDOW_MS = 5000;
+
+export type ClientMessage =
+  | { type: "join"; playerId: string; name: string }
+  | { type: "ready" }
+  | { type: "start" }
+  | { type: "answer"; choiceId: string }
+  | { type: "rematch" };
+
+export function isOversizedMessage(byteLength: number): boolean {
+  return byteLength > MAX_MESSAGE_BYTES;
+}
+
+export function consumeRateLimit(
+  timestamps: number[],
+  nowMs: number,
+): { allowed: boolean; timestamps: number[] } {
+  const windowStart = nowMs - RATE_LIMIT_WINDOW_MS;
+  const kept = timestamps.filter((t) => t >= windowStart);
+  if (kept.length >= RATE_LIMIT_COUNT) {
+    return { allowed: false, timestamps: kept };
+  }
+  return { allowed: true, timestamps: [...kept, nowMs] };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isStringInRange(
+  value: unknown,
+  minLen: number,
+  maxLen: number,
+): value is string {
+  return (
+    typeof value === "string" &&
+    value.length >= minLen &&
+    value.length <= maxLen
+  );
+}
+
+export function parseClientMessage(raw: string): ClientMessage | null {
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!isRecord(value)) return null;
+
+  switch (value.type) {
+    case "join": {
+      if (!isStringInRange(value.playerId, 1, 64)) return null;
+      if (typeof value.name !== "string") return null;
+      const name = value.name.trim().slice(0, 24);
+      if (!name) return null;
+      return { type: "join", playerId: value.playerId, name };
+    }
+    case "answer": {
+      if (!isStringInRange(value.choiceId, 1, 64)) return null;
+      return { type: "answer", choiceId: value.choiceId };
+    }
+    case "ready":
+      return { type: "ready" };
+    case "start":
+      return { type: "start" };
+    case "rematch":
+      return { type: "rematch" };
+    default:
+      return null;
+  }
+}
+
+export function classifyJoin(
+  state: RoomState,
+  input: { playerId: string; name: string },
+): "ok" | "full" | "bad_name" {
+  if (!input.name.trim()) return "bad_name";
+  const existing = state.players.find((p) => p.id === input.playerId);
+  const connectedCount = state.players.filter((p) => p.connected).length;
+  if (!existing && connectedCount >= MAX_PLAYERS) return "full";
+  return "ok";
+}
 
 export function emptyRoomState(): RoomState {
   return {
@@ -175,7 +261,7 @@ export function applyJoin(
 
   const existing = state.players.find((p) => p.id === input.playerId);
   const connectedCount = state.players.filter((p) => p.connected).length;
-  if (!existing && connectedCount >= 8) return state;
+  if (!existing && connectedCount >= MAX_PLAYERS) return state;
 
   let players: Player[];
   if (existing) {
