@@ -1,0 +1,48 @@
+# Boro Battle
+
+Realtime NYC trivia for 2–8 players in a browser. Each round compares real 311 complaint counts from a fixed monthly snapshot. One player hosts a room; everyone else joins with the same four-letter code.
+
+## How a room works
+
+1. Open the app, enter a display name, and create or enter a room code.
+2. The first player in the room is the host. Others join from another tab or device with the same code.
+3. In the lobby, players toggle **Ready**. The host starts once at least two players are connected.
+4. Each of ten rounds shows a prompt and large choice buttons. You have 15 seconds to pick one answer.
+5. After time is up, the server reveals the correct choice and the complaint counts behind each option.
+6. The winner screen lists scores. Ties share the win. The host can start a **Rematch** that keeps the room and players but deals a new deck.
+
+Refreshing the page keeps the same player identity via `sessionStorage`, so you rejoin as the same participant.
+
+## Why the server scores
+
+The browser only sends your choice id. It does not receive correct answers or complaint counts until the round enters the reveal phase. Round deadlines are driven by a Durable Object storage alarm, not the client clock, so late picks cannot claim points. All scoring logic lives in `src/game.ts` and runs on the server.
+
+## Data sources
+
+Questions are built offline by `scripts/build-questions.ts` from the [NYC 311 Service Requests](https://data.cityofnewyork.us/Social-Services/311-Service-Requests-from-2010-to-Present/erm2-nwe9) dataset (`erm2-nwe9`):
+
+- **Noise** rounds: `complaint_type like 'Noise%'`, grouped by `incident_zip`.
+- **Rodent** rounds: `complaint_type = 'Rodent'`, grouped by `community_board`.
+
+The script picks a recent calendar month, drops groups under 20 complaints, skips tied winners, shuffles choice order, spot-checks ten rows against a second query, and writes `questions.json`. Live games never call 311.
+
+## Development
+
+```bash
+npm install
+npm run build:questions   # fetches 311 data; needs network
+npm test
+npm run dev               # builds the client and runs wrangler dev
+```
+
+Stack: one Cloudflare Worker, one SQLite-backed Durable Object per room (`idFromName` on the room code), hibernating WebSockets, plain HTML/CSS/TypeScript.
+
+Deploy is intentionally out of scope until explicitly requested.
+
+## Learning notes
+
+After you play a room locally, it is worth tracing three paths in the code:
+
+- **Durable Object state** — players, deck, phase, and answers persist in SQLite inside `Room`, so hibernation does not wipe the game.
+- **WebSocket flow** — a client message hits `webSocketMessage`, updates state, persists, then `broadcast` sends each socket a personalized `state` payload.
+- **Trust boundary** — the client is untrusted input; only the worker applies deadlines and increments scores.
