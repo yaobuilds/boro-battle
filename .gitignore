@@ -2,7 +2,10 @@ node_modules/
 .wrangler/
 dist/
 .DS_Store
+._*
 *.log
 .cursor/
 PLAN.md
 public/client.js
+.env
+.dev.vars

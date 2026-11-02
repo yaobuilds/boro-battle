@@ -3,6 +3,10 @@
   "name": "boro-battle",
   "main": "src/index.ts",
   "compatibility_date": "2025-01-01",
+  "workers_dev": false,
+  "routes": [
+    { "pattern": "boro-battle.yaoban.dev", "custom_domain": true }
+  ],
   "assets": {
     "directory": "public",
     "binding": "ASSETS"
