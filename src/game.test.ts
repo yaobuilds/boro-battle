@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  applyAlarm,
+  applyAnswer,
   applyDisconnect,
   applyJoin,
+  applyStart,
   buildStatePayload,
   classifyJoin,
   consumeRateLimit,
@@ -278,6 +281,93 @@ describe("classifyJoin", () => {
       classifyJoin(emptyRoomState(), { playerId: "p1", name: "   " }),
       "bad_name",
     );
+  });
+});
+
+function questionPool(count: number): Question[] {
+  return Array.from({ length: count }, (_, i) =>
+    sampleQuestion(`pool-${i}`, "noise"),
+  );
+}
+
+describe("applyAnswer and applyAlarm", () => {
+  it("scores zero when a correct answer arrives after the deadline", () => {
+    const pool = questionPool(10);
+    const nowMs = 1_000_000;
+    let state = emptyRoomState();
+    state = applyJoin(state, { playerId: "host", name: "Host" });
+    state = applyJoin(state, { playerId: "guest", name: "Guest" });
+    state = applyStart(state, { playerId: "host", deck: pool, nowMs });
+
+    const q = state.deck[state.roundIndex]!;
+    const correctChoiceId = q.correctChoiceId;
+    const deadlineMs = state.deadlineMs!;
+
+    state = applyAnswer(state, {
+      playerId: "host",
+      choiceId: correctChoiceId,
+      nowMs: deadlineMs,
+    });
+    state = applyAnswer(state, {
+      playerId: "guest",
+      choiceId: correctChoiceId,
+      nowMs: deadlineMs + 1,
+    });
+    state = applyAlarm(state, deadlineMs + 1);
+
+    const host = state.players.find((p) => p.id === "host")!;
+    const guest = state.players.find((p) => p.id === "guest")!;
+    assert.equal(host.score, 1);
+    assert.equal(guest.score, 0);
+  });
+});
+
+describe("applyDisconnect and applyJoin", () => {
+  it("preserves score when a player disconnects after reveal and rejoins", () => {
+    const pool = questionPool(10);
+    const nowMs = 1_000_000;
+    let state = emptyRoomState();
+    state = applyJoin(state, { playerId: "host", name: "Host" });
+    state = applyJoin(state, { playerId: "guest", name: "Guest" });
+    state = applyStart(state, { playerId: "host", deck: pool, nowMs });
+
+    const q = state.deck[state.roundIndex]!;
+    state = applyAnswer(state, {
+      playerId: "host",
+      choiceId: q.correctChoiceId,
+      nowMs: nowMs + 1000,
+    });
+    state = applyAlarm(state, nowMs + 20_000);
+    assert.equal(state.phase, "reveal");
+
+    const scoreBefore = state.players.find((p) => p.id === "host")!.score;
+    assert.equal(scoreBefore, 1);
+
+    state = applyDisconnect(state, "host");
+    assert.equal(
+      state.players.find((p) => p.id === "host")!.connected,
+      false,
+    );
+    assert.equal(state.players.find((p) => p.id === "host")!.score, scoreBefore);
+
+    state = applyJoin(state, { playerId: "host", name: "Host" });
+    const rejoined = state.players.find((p) => p.id === "host")!;
+    assert.equal(rejoined.score, scoreBefore);
+    assert.equal(rejoined.connected, true);
+  });
+});
+
+describe("invalid client messages", () => {
+  it("leaves room state unchanged when oversized, malformed, or unknown", () => {
+    let state = emptyRoomState();
+    state = applyJoin(state, { playerId: "p1", name: "One" });
+    const snapshot = structuredClone(state);
+
+    const oversized = "x".repeat(MAX_MESSAGE_BYTES + 1);
+    assert.equal(isOversizedMessage(oversized.length), true);
+    assert.equal(parseClientMessage("{"), null);
+    assert.equal(parseClientMessage(JSON.stringify({ type: "nope" })), null);
+    assert.deepEqual(state, snapshot);
   });
 });
 
