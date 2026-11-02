@@ -1,0 +1,44 @@
+/* Yao brand tokens (final, locked Oct 24 2026)
+   Base: Bone on ink. One accent: Verdigris. Flat mark, no chrome/3D. */
+@font-face{font-family:"Inter";src:url(fonts/Inter-450.ttf) format("truetype");font-weight:400;font-display:swap}
+@font-face{font-family:"Inter";src:url(fonts/Inter-600.ttf) format("truetype");font-weight:600;font-display:swap}
+@font-face{font-family:"JetBrains Mono";src:url(fonts/JetBrainsMono-500.ttf) format("truetype");font-weight:500;font-display:swap}
+:root{
+  /* color */
+  --yao-ink:#0F0F12;        /* page background */
+  --yao-ink-2:#17161A;      /* raised surface: cards */
+  --yao-line:#2A2723;       /* hairline borders, dividers */
+  --yao-bone:#E0D3BB;       /* logo, headings, body text (12.94:1 on ink) */
+  --yao-bone-70:#A19888;    /* secondary text = bone at 70% on ink (6.71:1) */
+  --yao-accent:#5FA39A;     /* Verdigris: buttons, links, 18deg loading bar, focus (6.55:1 on ink) */
+  --yao-on-accent:#0F0F12;  /* text on Verdigris buttons (6.55:1) */
+  /* type */
+  --yao-font-sans:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --yao-font-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --yao-display:clamp(88px,26vw,200px); --yao-display-lh:.86; --yao-display-ls:-.045em;
+  --yao-lead:clamp(20px,5.4vw,34px);    --yao-lead-lh:1.22;   --yao-lead-ls:-.015em;
+  --yao-body:16px; --yao-small:13px; --yao-mono-size:12px; --yao-mono-ls:.02em;
+  /* shape + motif */
+  --yao-angle:18deg;              /* THE brand angle: the mark's cut */
+  --yao-tan:0.3249;               /* tan(18deg): rise per unit run */
+  --yao-radius:10px; --yao-radius-card:14px;
+  --yao-focus:2px solid var(--yao-accent); --yao-focus-offset:3px;
+  --yao-ease-out:cubic-bezier(.22,1,.36,1);
+  --yao-reveal-ms:1040ms; --yao-reveal-open-ms:380ms; --yao-reveal-hold-ms:120ms; --yao-reveal-return-ms:540ms;
+  --yao-reveal-ease:cubic-bezier(.4,0,.2,1); --yao-reveal-return-ease:cubic-bezier(.12,.8,.2,1);
+}
+html{background:var(--yao-ink);color:var(--yao-bone);font-family:var(--yao-font-sans)}
+a{color:var(--yao-accent);text-underline-offset:3px}
+:focus-visible{outline:var(--yao-focus);outline-offset:var(--yao-focus-offset)}
+.yao-btn{display:inline-flex;align-items:center;gap:10px;height:48px;padding:0 20px;border-radius:var(--yao-radius);background:var(--yao-accent);color:var(--yao-on-accent);font-weight:600;font-size:15px;text-decoration:none}
+.yao-btn-ghost{display:inline-flex;align-items:center;height:48px;padding:0 18px;border-radius:var(--yao-radius);border:1px solid var(--yao-line);color:var(--yao-bone);font-size:15px;text-decoration:none}
+/* 18deg divider: two bars split by the mark's cut */
+.yao-divider{position:relative;height:10px}
+.yao-divider::before,.yao-divider::after{content:"";position:absolute;top:0;height:6px;background:#2E2B26}
+.yao-divider::before{left:0;right:calc(42% + 4px);clip-path:polygon(0 0,100% 0,calc(100% - 18.5px) 100%,0 100%)}
+.yao-divider::after{left:calc(58% - 4px);right:0;top:4px;clip-path:polygon(18.5px 0,100% 0,100% 100%,0 100%)}
+/* 18deg loading bar (accent) */
+.yao-loader{height:6px;background:var(--yao-line);overflow:hidden;clip-path:polygon(18.5px 0,100% 0,calc(100% - 18.5px) 100%,0 100%)}
+.yao-loader::after{content:"";display:block;height:100%;width:40%;background:var(--yao-accent);clip-path:polygon(18.5px 0,100% 0,calc(100% - 18.5px) 100%,0 100%);animation:yao-load 1.2s var(--yao-ease-out) infinite}
+@keyframes yao-load{from{transform:translateX(-100%)}to{transform:translateX(250%)}}
+@media (prefers-reduced-motion:reduce){.yao-loader::after{animation:none;width:100%;opacity:.6}}
