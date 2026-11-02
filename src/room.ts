@@ -9,6 +9,7 @@ import {
   applyStart,
   buildStatePayload,
   emptyRoomState,
+  isPlayerIdTakenByAnotherSocket,
   type Question,
   type RoomState,
 } from "./game";
@@ -119,6 +120,21 @@ export class Room implements DurableObject {
 
     switch (parsed.type) {
       case "join": {
+        const sockets = this.ctx.getWebSockets();
+        if (
+          isPlayerIdTakenByAnotherSocket(
+            parsed.playerId,
+            sockets.map((s) => {
+              const att = s.deserializeAttachment() as SocketAttachment | null;
+              return {
+                playerId: att?.playerId ?? null,
+                isJoiningSocket: s === ws,
+              };
+            }),
+          )
+        ) {
+          break;
+        }
         this.state = applyJoin(this.state, {
           playerId: parsed.playerId,
           name: parsed.name,

@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  applyJoin,
+  buildStatePayload,
   dealDeck,
+  emptyRoomState,
+  isPlayerIdTakenByAnotherSocket,
   publicQuestion,
   scoreAnswer,
   type Question,
@@ -116,5 +120,58 @@ describe("publicQuestion", () => {
     ]);
     assert.equal("correctChoiceId" in pub, false);
     assert.equal("count" in pub.choices[0], false);
+  });
+});
+
+describe("buildStatePayload", () => {
+  it("exposes player ids only to the viewing player", () => {
+    let state = emptyRoomState();
+    state = applyJoin(state, { playerId: "alice-id", name: "Alice" });
+    state = applyJoin(state, { playerId: "bob-id", name: "Bob" });
+
+    const aliceView = buildStatePayload(state, "alice-id");
+    assert.equal(aliceView.yourPlayerId, "alice-id");
+    assert.equal(aliceView.players[0].id, "alice-id");
+    assert.equal("id" in aliceView.players[1], false);
+    assert.equal(aliceView.players[1].index, 1);
+    assert.equal(aliceView.players[1].name, "Bob");
+
+    const bobView = buildStatePayload(state, "bob-id");
+    assert.equal(bobView.players[1].id, "bob-id");
+    assert.equal("id" in bobView.players[0], false);
+    assert.equal(bobView.players[0].index, 0);
+
+    const spectator = buildStatePayload(state, null);
+    for (const p of spectator.players) {
+      assert.equal("id" in p, false);
+    }
+  });
+});
+
+describe("isPlayerIdTakenByAnotherSocket", () => {
+  it("blocks join when another socket already holds the playerId", () => {
+    assert.equal(
+      isPlayerIdTakenByAnotherSocket("p1", [
+        { playerId: "p1", isJoiningSocket: false },
+        { playerId: null, isJoiningSocket: true },
+      ]),
+      true,
+    );
+  });
+
+  it("allows join on the same socket or when id is free", () => {
+    assert.equal(
+      isPlayerIdTakenByAnotherSocket("p1", [
+        { playerId: "p1", isJoiningSocket: true },
+      ]),
+      false,
+    );
+    assert.equal(
+      isPlayerIdTakenByAnotherSocket("p1", [
+        { playerId: "p2", isJoiningSocket: false },
+        { playerId: null, isJoiningSocket: true },
+      ]),
+      false,
+    );
   });
 });

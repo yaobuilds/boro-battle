@@ -343,12 +343,24 @@ export function winnerIds(state: RoomState): string[] {
   return state.players.filter((p) => p.score === top).map((p) => p.id);
 }
 
+/** True when another socket (not the joining one) already holds this playerId. */
+export function isPlayerIdTakenByAnotherSocket(
+  playerId: string,
+  sockets: ReadonlyArray<{ playerId: string | null; isJoiningSocket: boolean }>,
+): boolean {
+  return sockets.some(
+    (s) => !s.isJoiningSocket && s.playerId === playerId,
+  );
+}
+
 export interface ClientPlayer {
-  id: string;
+  index: number;
   name: string;
   ready: boolean;
   connected: boolean;
   score: number;
+  /** Set only on the viewer's own player row. */
+  id?: string;
 }
 
 export interface RevealChoice extends PublicChoice {
@@ -358,7 +370,8 @@ export interface RevealChoice extends PublicChoice {
 export interface StatePayload {
   type: "state";
   phase: Phase;
-  hostId: string;
+  yourPlayerId: string | null;
+  youAreHost: boolean;
   players: ClientPlayer[];
   round: number | null;
   totalRounds: number;
@@ -368,7 +381,7 @@ export interface StatePayload {
     choices: RevealChoice[];
   } | null;
   deadlineMs: number | null;
-  winnerIds: string[];
+  winnerIndices: number[];
   yourChoiceId: string | null;
 }
 
@@ -404,23 +417,37 @@ export function buildStatePayload(
       ? (state.answers[viewerPlayerId] ?? null)
       : null;
 
+  const winners = state.phase === "winner" ? new Set(winnerIds(state)) : null;
+  const winnerIndices =
+    winners == null
+      ? []
+      : state.players.flatMap((p, index) => (winners.has(p.id) ? [index] : []));
+
   return {
     type: "state",
     phase: state.phase,
-    hostId: state.hostId,
-    players: state.players.map(({ id, name, ready, connected, score }) => ({
-      id,
-      name,
-      ready,
-      connected,
-      score,
-    })),
+    yourPlayerId: viewerPlayerId,
+    youAreHost:
+      viewerPlayerId != null && state.hostId === viewerPlayerId,
+    players: state.players.map((p, index) => {
+      const row: ClientPlayer = {
+        index,
+        name: p.name,
+        ready: p.ready,
+        connected: p.connected,
+        score: p.score,
+      };
+      if (p.id === viewerPlayerId) {
+        row.id = p.id;
+      }
+      return row;
+    }),
     round,
     totalRounds: ROUND_COUNT,
     question,
     reveal,
     deadlineMs: state.phase === "question" ? state.deadlineMs : null,
-    winnerIds: state.phase === "winner" ? winnerIds(state) : [],
+    winnerIndices,
     yourChoiceId,
   };
 }
