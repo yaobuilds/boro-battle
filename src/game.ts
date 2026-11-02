@@ -62,7 +62,7 @@ export const RATE_LIMIT_COUNT = 10;
 export const RATE_LIMIT_WINDOW_MS = 5000;
 
 export type ClientMessage =
-  | { type: "join"; playerId: string; name: string }
+  | { type: "join"; playerId: string; name: string; create: boolean }
   | { type: "ready" }
   | { type: "start" }
   | { type: "answer"; choiceId: string }
@@ -115,7 +115,8 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       if (typeof value.name !== "string") return null;
       const name = value.name.trim().slice(0, 24);
       if (!name) return null;
-      return { type: "join", playerId: value.playerId, name };
+      const create = value.create === true;
+      return { type: "join", playerId: value.playerId, name, create };
     }
     case "answer": {
       if (!isStringInRange(value.choiceId, 1, 64)) return null;
@@ -130,6 +131,10 @@ export function parseClientMessage(raw: string): ClientMessage | null {
     default:
       return null;
   }
+}
+
+export function missingRoom(hasSavedRoom: boolean, create: boolean): boolean {
+  return !hasSavedRoom && !create;
 }
 
 export function classifyJoin(
@@ -458,6 +463,7 @@ export interface StatePayload {
   phase: Phase;
   yourPlayerId: string | null;
   youAreHost: boolean;
+  hostIndex: number | null;
   players: ClientPlayer[];
   round: number | null;
   totalRounds: number;
@@ -509,12 +515,16 @@ export function buildStatePayload(
       ? []
       : state.players.flatMap((p, index) => (winners.has(p.id) ? [index] : []));
 
+  const hostPlayerIndex = state.players.findIndex((p) => p.id === state.hostId);
+  const hostIndex = hostPlayerIndex >= 0 ? hostPlayerIndex : null;
+
   return {
     type: "state",
     phase: state.phase,
     yourPlayerId: viewerPlayerId,
     youAreHost:
       viewerPlayerId != null && state.hostId === viewerPlayerId,
+    hostIndex,
     players: state.players.map((p, index) => {
       const row: ClientPlayer = {
         index,

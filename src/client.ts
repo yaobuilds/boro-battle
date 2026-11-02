@@ -7,6 +7,10 @@ import {
 
 const PLAYER_KEY = "boro-battle-player-id";
 
+type ServerMessage =
+  | StatePayload
+  | { type: "error"; code: string };
+
 function playerId(): string {
   let id = sessionStorage.getItem(PLAYER_KEY);
   if (!id) {
@@ -27,6 +31,7 @@ const playerList = document.getElementById("player-list")!;
 const lobbyActions = document.getElementById("lobby-actions")!;
 const readyBtn = document.getElementById("ready-btn")!;
 const startBtn = document.getElementById("start-btn")!;
+const startHint = document.getElementById("start-hint")!;
 const roundPanel = document.getElementById("round-panel")!;
 const roundMeta = document.getElementById("round-meta")!;
 const timerEl = document.getElementById("timer")!;
@@ -46,10 +51,24 @@ let roomCode = "";
 let playerName = "";
 let latest: StatePayload | null = null;
 let timerHandle: number | null = null;
+let joinCreate = false;
+let joinErrorShowing = false;
+let idInUseRetried = false;
 
 function showError(msg: string): void {
+  joinErrorShowing = Boolean(msg);
   joinError.hidden = !msg;
   joinError.textContent = msg;
+}
+
+function returnToJoin(msg: string): void {
+  latest = null;
+  ws?.close();
+  ws = null;
+  joinPanel.hidden = false;
+  gamePanel.hidden = true;
+  showError(msg);
+  statusLine.textContent = "";
 }
 
 function wsUrl(code: string): string {
@@ -57,27 +76,69 @@ function wsUrl(code: string): string {
   return `${proto}//${location.host}/api/room/${code}`;
 }
 
+function joinPayload(name: string): Record<string, unknown> {
+  return {
+    type: "join",
+    playerId: playerId(),
+    name,
+    create: joinCreate,
+  };
+}
+
+function handleServerMessage(data: ServerMessage, onIdInUse: () => void): void {
+  if (data.type === "error") {
+    switch (data.code) {
+      case "room_full":
+        returnToJoin("This room is full (8 players).");
+        return;
+      case "not_found":
+        returnToJoin("No room with that code.");
+        return;
+      case "id_in_use":
+        if (!idInUseRetried) {
+          idInUseRetried = true;
+          onIdInUse();
+          return;
+        }
+        returnToJoin("That player is already in this room.");
+        return;
+      default:
+        return;
+    }
+  }
+  if (data.type !== "state") return;
+  idInUseRetried = false;
+  joinErrorShowing = false;
+  latest = data;
+  render();
+}
+
 function connect(code: string, name: string): void {
   ws?.close();
-  ws = new WebSocket(wsUrl(code));
-  ws.addEventListener("open", () => {
-    ws?.send(
-      JSON.stringify({
-        type: "join",
-        playerId: playerId(),
-        name,
-      }),
-    );
-  });
-  ws.addEventListener("message", (ev) => {
-    const data = JSON.parse(String(ev.data)) as StatePayload;
-    if (data.type !== "state") return;
-    latest = data;
-    render();
-  });
-  ws.addEventListener("close", () => {
-    statusLine.textContent = "Disconnected. Refresh to reconnect.";
-  });
+  idInUseRetried = false;
+
+  const openSocket = (): WebSocket => {
+    const socket = new WebSocket(wsUrl(code));
+    socket.addEventListener("open", () => {
+      socket.send(JSON.stringify(joinPayload(name)));
+    });
+    socket.addEventListener("message", (ev) => {
+      const data = JSON.parse(String(ev.data)) as ServerMessage;
+      handleServerMessage(data, () => {
+        ws?.close();
+        ws = openSocket();
+      });
+    });
+    socket.addEventListener("close", () => {
+      if (ws !== socket) return;
+      if (!joinErrorShowing) {
+        statusLine.textContent = "Disconnected. Refresh to reconnect.";
+      }
+    });
+    return socket;
+  };
+
+  ws = openSocket();
 }
 
 function send(body: Record<string, unknown>): void {
@@ -108,6 +169,22 @@ function updateTimer(): void {
   timerBar.style.transform = `scaleX(${fraction})`;
 }
 
+function choiceLocked(state: StatePayload): boolean {
+  return (
+    state.phase !== "question" ||
+    Boolean(state.yourChoiceId) ||
+    !latest?.deadlineMs ||
+    Date.now() > latest.deadlineMs
+  );
+}
+
+function tryAnswer(state: StatePayload, choiceIndex: number): void {
+  if (choiceLocked(state)) return;
+  const choice = state.question?.choices[choiceIndex];
+  if (!choice) return;
+  send({ type: "answer", choiceId: choice.id });
+}
+
 function renderPlayers(state: StatePayload): void {
   playerList.innerHTML = "";
   for (const p of state.players) {
@@ -117,7 +194,7 @@ function renderPlayers(state: StatePayload): void {
     name.textContent = p.name;
     const badges = document.createElement("span");
     badges.className = "badges";
-    if (p.id === state.hostId) {
+    if (p.index === state.hostIndex) {
       const host = document.createElement("span");
       host.className = "badge host";
       host.textContent = "host";
@@ -129,8 +206,15 @@ function renderPlayers(state: StatePayload): void {
       ready.textContent = "ready";
       badges.appendChild(ready);
     }
+    if (p.id != null) {
+      const you = document.createElement("span");
+      you.className = "badge you";
+      you.textContent = "you";
+      badges.appendChild(you);
+    }
     if (!p.connected) {
       const away = document.createElement("span");
+      away.className = "badge away-label";
       away.textContent = "away";
       badges.appendChild(away);
     }
@@ -148,24 +232,26 @@ function renderQuestion(state: StatePayload): void {
   choicesEl.innerHTML = "";
   if (!state.question) return;
   promptEl.textContent = state.question.prompt;
-  for (const choice of state.question.choices) {
+  const locked = choiceLocked(state);
+  state.question.choices.forEach((choice, index) => {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "btn choice";
-    btn.textContent = choice.label;
+    const digit = document.createElement("span");
+    digit.className = "choice-digit";
+    digit.textContent = String(index + 1);
+    const label = document.createElement("span");
+    label.className = "choice-label";
+    label.textContent = choice.label;
+    btn.append(digit, label);
     const picked = state.yourChoiceId === choice.id;
     if (picked) btn.classList.add("selected");
-    const locked =
-      state.phase !== "question" ||
-      Boolean(state.yourChoiceId) ||
-      !latest?.deadlineMs ||
-      Date.now() > latest.deadlineMs;
     btn.disabled = locked;
     btn.addEventListener("click", () => {
-      send({ type: "answer", choiceId: choice.id });
+      tryAnswer(state, index);
     });
     choicesEl.appendChild(btn);
-  }
+  });
 }
 
 function renderReveal(state: StatePayload): void {
@@ -189,11 +275,17 @@ function renderReveal(state: StatePayload): void {
 
 function renderWinner(state: StatePayload): void {
   scoreboard.innerHTML = "";
+  const winnerSet = new Set(state.winnerIndices);
   const sorted = [...state.players].sort((a, b) => b.score - a.score);
   for (const p of sorted) {
     const li = document.createElement("li");
-    if (state.winnerIds.includes(p.id)) li.classList.add("winner-row");
-    li.innerHTML = `<span>${p.name}${!p.connected ? " (away)" : ""}</span><span>${p.score}</span>`;
+    if (winnerSet.has(p.index)) li.classList.add("winner-row");
+    if (!p.connected) li.classList.add("away");
+    const nameSpan = document.createElement("span");
+    nameSpan.textContent = p.name;
+    const scoreSpan = document.createElement("span");
+    scoreSpan.textContent = String(p.score);
+    li.append(nameSpan, scoreSpan);
     scoreboard.appendChild(li);
   }
 }
@@ -209,18 +301,20 @@ function render(): void {
   revealPanel.hidden = state.phase !== "reveal";
   winnerPanel.hidden = state.phase !== "winner";
 
-  const me = state.players.find((p) => p.id === playerId());
-  const isHost = state.hostId === playerId();
+  const me = state.players.find((p) => p.id != null);
 
   readyBtn.hidden = state.phase !== "lobby";
   if (me) {
     readyBtn.textContent = me.ready ? "Not ready" : "Ready";
   }
 
-  startBtn.hidden = !(state.phase === "lobby" && isHost);
-  startBtn.disabled = state.players.filter((p) => p.connected).length < 2;
+  const connectedCount = state.players.filter((p) => p.connected).length;
+  const showStart = state.phase === "lobby" && state.youAreHost;
+  startBtn.hidden = !showStart;
+  startBtn.disabled = connectedCount < 2;
+  startHint.hidden = !(showStart && connectedCount < 2);
 
-  rematchBtn.hidden = !(state.phase === "winner" && isHost);
+  rematchBtn.hidden = !(state.phase === "winner" && state.youAreHost);
 
   if (state.phase === "question" || state.phase === "reveal") {
     roundMeta.textContent =
@@ -244,6 +338,11 @@ function render(): void {
 
 document.getElementById("new-room-btn")!.addEventListener("click", () => {
   roomInput.value = randomRoomCode();
+  joinCreate = true;
+});
+
+roomInput.addEventListener("input", () => {
+  joinCreate = false;
 });
 
 document.getElementById("join-btn")!.addEventListener("click", () => {
@@ -270,6 +369,21 @@ document.getElementById("join-btn")!.addEventListener("click", () => {
 readyBtn.addEventListener("click", () => send({ type: "ready" }));
 startBtn.addEventListener("click", () => send({ type: "start" }));
 rematchBtn.addEventListener("click", () => send({ type: "rematch" }));
+
+document.addEventListener("keydown", (ev) => {
+  const target = ev.target;
+  if (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement
+  ) {
+    return;
+  }
+  if (!latest || latest.phase !== "question") return;
+  const key = ev.key;
+  if (key !== "1" && key !== "2" && key !== "3" && key !== "4") return;
+  const index = Number(key) - 1;
+  tryAnswer(latest, index);
+});
 
 const params = new URLSearchParams(location.search);
 const fromUrl = params.get("room");

@@ -13,6 +13,7 @@ import {
   emptyRoomState,
   isOversizedMessage,
   isPlayerIdTakenByAnotherSocket,
+  missingRoom,
   parseClientMessage,
   type Question,
   type RoomState,
@@ -32,6 +33,7 @@ export class Room implements DurableObject {
   private state: RoomState = emptyRoomState();
   private questionPool: Question[] = questionData as Question[];
   private initialized = false;
+  private savedRoom = false;
 
   constructor(
     private ctx: DurableObjectState,
@@ -54,8 +56,7 @@ export class Room implements DurableObject {
       ];
       if (rows.length > 0) {
         this.state = JSON.parse(rows[0].json) as RoomState;
-      } else {
-        await this.persist();
+        this.savedRoom = true;
       }
       this.initialized = true;
     });
@@ -126,6 +127,15 @@ export class Room implements DurableObject {
 
     switch (parsed.type) {
       case "join": {
+        if (missingRoom(this.savedRoom, parsed.create)) {
+          try {
+            ws.send(JSON.stringify({ type: "error", code: "not_found" }));
+            ws.close();
+          } catch {
+            // socket may already be closing
+          }
+          break;
+        }
         const sockets = this.ctx.getWebSockets();
         if (
           isPlayerIdTakenByAnotherSocket(
@@ -139,6 +149,12 @@ export class Room implements DurableObject {
             }),
           )
         ) {
+          try {
+            ws.send(JSON.stringify({ type: "error", code: "id_in_use" }));
+            ws.close();
+          } catch {
+            // socket may already be closing
+          }
           break;
         }
         const joinKind = classifyJoin(this.state, {
@@ -164,6 +180,7 @@ export class Room implements DurableObject {
           rateLimitTimestamps: attachment?.rateLimitTimestamps ?? rate.timestamps,
         });
         await this.persist();
+        this.savedRoom = true;
         await this.broadcast();
         break;
       }

@@ -45,13 +45,11 @@
       </section>
 
       <section id="game-panel" class="panel" hidden>
-        <div class="room-bar">
-          <span class="room-id">
-            <img class="room-mark" src="/brand/mark-bone.svg" alt="" width="28" height="18" />
-            <span>Room <strong id="room-label"></strong></span>
-          </span>
+        <header class="game-header">
+          <p class="room-code-label">Room</p>
+          <p id="room-label" class="room-code"></p>
           <span id="phase-label" class="phase"></span>
-        </div>
+        </header>
 
         <ul id="player-list" class="player-list"></ul>
 
@@ -60,6 +58,7 @@
           <button type="button" id="start-btn" class="btn accent wide" hidden>
             Start game
           </button>
+          <p id="start-hint" class="start-hint" hidden>Need 2 players to start.</p>
         </div>
 
         <div id="round-panel" hidden>

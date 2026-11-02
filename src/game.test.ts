@@ -14,6 +14,7 @@ import {
   isOversizedMessage,
   isPlayerIdTakenByAnotherSocket,
   MAX_MESSAGE_BYTES,
+  missingRoom,
   parseClientMessage,
   publicQuestion,
   RATE_LIMIT_COUNT,
@@ -142,12 +143,14 @@ describe("buildStatePayload", () => {
 
     const aliceView = buildStatePayload(state, "alice-id");
     assert.equal(aliceView.yourPlayerId, "alice-id");
+    assert.equal(aliceView.hostIndex, 0);
     assert.equal(aliceView.players[0].id, "alice-id");
     assert.equal("id" in aliceView.players[1], false);
     assert.equal(aliceView.players[1].index, 1);
     assert.equal(aliceView.players[1].name, "Bob");
 
     const bobView = buildStatePayload(state, "bob-id");
+    assert.equal(bobView.hostIndex, 0);
     assert.equal(bobView.players[1].id, "bob-id");
     assert.equal("id" in bobView.players[0], false);
     assert.equal(bobView.players[0].index, 0);
@@ -169,7 +172,18 @@ describe("parseClientMessage", () => {
           name: "  Alice Extra Long Name That Gets Cut  ",
         }),
       ),
-      { type: "join", playerId: "p1", name: "Alice Extra Long Name Th" },
+      { type: "join", playerId: "p1", name: "Alice Extra Long Name Th", create: false },
+    );
+    assert.deepEqual(
+      parseClientMessage(
+        JSON.stringify({
+          type: "join",
+          playerId: "p1",
+          name: "Bob",
+          create: true,
+        }),
+      ),
+      { type: "join", playerId: "p1", name: "Bob", create: true },
     );
     assert.deepEqual(parseClientMessage(JSON.stringify({ type: "ready" })), {
       type: "ready",
@@ -368,6 +382,15 @@ describe("invalid client messages", () => {
     assert.equal(parseClientMessage("{"), null);
     assert.equal(parseClientMessage(JSON.stringify({ type: "nope" })), null);
     assert.deepEqual(state, snapshot);
+  });
+});
+
+describe("missingRoom", () => {
+  it("is true only when there is no saved room and create is false", () => {
+    assert.equal(missingRoom(false, false), true);
+    assert.equal(missingRoom(false, true), false);
+    assert.equal(missingRoom(true, false), false);
+    assert.equal(missingRoom(true, true), false);
   });
 });
 
