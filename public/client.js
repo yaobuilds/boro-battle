@@ -1,4 +1,5 @@
 // src/game.ts
+var ROUND_SECONDS = 15;
 var ROOM_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 function isValidRoomCode(code) {
   return code.length === 4 && [...code].every((ch) => ROOM_CODE_CHARS.includes(ch));
@@ -36,6 +37,8 @@ var startBtn = document.getElementById("start-btn");
 var roundPanel = document.getElementById("round-panel");
 var roundMeta = document.getElementById("round-meta");
 var timerEl = document.getElementById("timer");
+var timerClock = document.getElementById("timer-clock");
+var timerBar = document.getElementById("timer-bar");
 var promptEl = document.getElementById("prompt");
 var choicesEl = document.getElementById("choices");
 var revealPanel = document.getElementById("reveal-panel");
@@ -93,11 +96,16 @@ function clearTimer() {
 function updateTimer() {
   if (!latest?.deadlineMs) {
     timerEl.textContent = "";
+    timerClock.hidden = true;
+    timerBar.style.transform = "scaleX(0)";
     return;
   }
   const left = Math.max(0, latest.deadlineMs - Date.now());
   const seconds = Math.ceil(left / 1e3);
   timerEl.textContent = `${seconds}s`;
+  timerClock.hidden = false;
+  const fraction = Math.min(1, left / (ROUND_SECONDS * 1e3));
+  timerBar.style.transform = `scaleX(${fraction})`;
 }
 function renderPlayers(state) {
   playerList.innerHTML = "";

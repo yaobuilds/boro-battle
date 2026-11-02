@@ -1,4 +1,9 @@
-import { isValidRoomCode, randomRoomCode, type StatePayload } from "./game";
+import {
+  isValidRoomCode,
+  randomRoomCode,
+  ROUND_SECONDS,
+  type StatePayload,
+} from "./game";
 
 const PLAYER_KEY = "boro-battle-player-id";
 
@@ -25,6 +30,8 @@ const startBtn = document.getElementById("start-btn")!;
 const roundPanel = document.getElementById("round-panel")!;
 const roundMeta = document.getElementById("round-meta")!;
 const timerEl = document.getElementById("timer")!;
+const timerClock = document.getElementById("timer-clock")!;
+const timerBar = document.getElementById("timer-bar")!;
 const promptEl = document.getElementById("prompt")!;
 const choicesEl = document.getElementById("choices")!;
 const revealPanel = document.getElementById("reveal-panel")!;
@@ -89,11 +96,16 @@ function clearTimer(): void {
 function updateTimer(): void {
   if (!latest?.deadlineMs) {
     timerEl.textContent = "";
+    timerClock.hidden = true;
+    timerBar.style.transform = "scaleX(0)";
     return;
   }
   const left = Math.max(0, latest.deadlineMs - Date.now());
   const seconds = Math.ceil(left / 1000);
   timerEl.textContent = `${seconds}s`;
+  timerClock.hidden = false;
+  const fraction = Math.min(1, left / (ROUND_SECONDS * 1000));
+  timerBar.style.transform = `scaleX(${fraction})`;
 }
 
 function renderPlayers(state: StatePayload): void {
