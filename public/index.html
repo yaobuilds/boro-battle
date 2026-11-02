@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Boro Battle</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main id="app">
+      <header class="hero">
+        <h1>Boro Battle</h1>
+        <p class="tagline">NYC 311 trivia — server keeps score and time.</p>
+      </header>
+
+      <section id="join-panel" class="panel">
+        <label class="field">
+          <span>Your name</span>
+          <input id="name-input" type="text" maxlength="24" autocomplete="nickname" />
+        </label>
+        <label class="field">
+          <span>Room code</span>
+          <input
+            id="room-input"
+            type="text"
+            maxlength="4"
+            autocapitalize="characters"
+            autocomplete="off"
+          />
+        </label>
+        <div class="row">
+          <button type="button" id="new-room-btn" class="btn secondary">New room</button>
+          <button type="button" id="join-btn" class="btn primary">Join</button>
+        </div>
+        <p id="join-error" class="error" hidden></p>
+      </section>
+
+      <section id="game-panel" class="panel" hidden>
+        <div class="room-bar">
+          <span>Room <strong id="room-label"></strong></span>
+          <span id="phase-label" class="phase"></span>
+        </div>
+
+        <ul id="player-list" class="player-list"></ul>
+
+        <div id="lobby-actions" class="actions" hidden>
+          <button type="button" id="ready-btn" class="btn primary wide">Ready</button>
+          <button type="button" id="start-btn" class="btn accent wide" hidden>
+            Start game
+          </button>
+        </div>
+
+        <div id="round-panel" hidden>
+          <p id="round-meta" class="round-meta"></p>
+          <p id="timer" class="timer"></p>
+          <h2 id="prompt" class="prompt"></h2>
+          <div id="choices" class="choices"></div>
+        </div>
+
+        <div id="reveal-panel" hidden>
+          <h2 class="prompt">Answer</h2>
+          <div id="reveal-choices" class="choices"></div>
+        </div>
+
+        <div id="winner-panel" hidden>
+          <h2>Winner</h2>
+          <ul id="scoreboard" class="scoreboard"></ul>
+          <button type="button" id="rematch-btn" class="btn accent wide" hidden>
+            Rematch
+          </button>
+        </div>
+
+        <p id="status-line" class="status"></p>
+      </section>
+    </main>
+    <script type="module" src="/client.js"></script>
+  </body>
+</html>
