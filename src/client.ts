@@ -336,16 +336,7 @@ function render(): void {
   }
 }
 
-document.getElementById("new-room-btn")!.addEventListener("click", () => {
-  roomInput.value = randomRoomCode();
-  joinCreate = true;
-});
-
-roomInput.addEventListener("input", () => {
-  joinCreate = false;
-});
-
-document.getElementById("join-btn")!.addEventListener("click", () => {
+function joinRoom(): void {
   const name = nameInput.value.trim();
   const code = roomInput.value.trim().toUpperCase();
   if (!name) {
@@ -364,6 +355,20 @@ document.getElementById("join-btn")!.addEventListener("click", () => {
   gamePanel.hidden = false;
   history.replaceState(null, "", `?room=${code}`);
   connect(code, name);
+}
+
+document.getElementById("new-room-btn")!.addEventListener("click", () => {
+  roomInput.value = randomRoomCode();
+  joinCreate = true;
+  joinRoom();
+});
+
+roomInput.addEventListener("input", () => {
+  joinCreate = false;
+});
+
+document.getElementById("join-btn")!.addEventListener("click", () => {
+  joinRoom();
 });
 
 readyBtn.addEventListener("click", () => send({ type: "ready" }));
