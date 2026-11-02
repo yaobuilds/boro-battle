@@ -12,7 +12,6 @@ import {
   consumeRateLimit,
   emptyRoomState,
   isOversizedMessage,
-  isPlayerIdTakenByAnotherSocket,
   missingRoom,
   parseClientMessage,
   type Question,
@@ -107,7 +106,9 @@ export class Room implements DurableObject {
     await this.ensureInit();
 
     const byteLength =
-      typeof message === "string" ? message.length : message.byteLength;
+      typeof message === "string"
+        ? new TextEncoder().encode(message).length
+        : message.byteLength;
     if (isOversizedMessage(byteLength)) return;
     if (typeof message !== "string") return;
 
@@ -136,26 +137,19 @@ export class Room implements DurableObject {
           }
           break;
         }
-        const sockets = this.ctx.getWebSockets();
-        if (
-          isPlayerIdTakenByAnotherSocket(
-            parsed.playerId,
-            sockets.map((s) => {
-              const att = s.deserializeAttachment() as SocketAttachment | null;
-              return {
-                playerId: att?.playerId ?? null,
-                isJoiningSocket: s === ws,
-              };
-            }),
-          )
-        ) {
+        // A refresh or a flaky connection can leave the old socket open. The id is a
+        // private random value, so the newest connection takes over the seat.
+        for (const other of this.ctx.getWebSockets()) {
+          if (other === ws) continue;
+          const att = other.deserializeAttachment() as SocketAttachment | null;
+          if (att?.playerId !== parsed.playerId) continue;
+          // Clear the id first so closing it does not mark the player disconnected.
+          other.serializeAttachment({});
           try {
-            ws.send(JSON.stringify({ type: "error", code: "id_in_use" }));
-            ws.close();
+            other.close(1000, "replaced");
           } catch {
             // socket may already be closing
           }
-          break;
         }
         const joinKind = classifyJoin(this.state, {
           playerId: parsed.playerId,
