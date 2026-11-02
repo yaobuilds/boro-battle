@@ -1,0 +1,20 @@
+{
+  "name": "boro-battle",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:client": "esbuild src/client.ts --bundle --outfile=public/client.js --format=esm --target=es2022",
+    "build:questions": "tsx scripts/build-questions.ts",
+    "dev": "npm run build:client && wrangler dev",
+    "test": "tsx --test src/game.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250204.0",
+    "@types/node": "^26.6.6",
+    "esbuild": "^0.25.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "wrangler": "^3.114.0"
+  }
+}
