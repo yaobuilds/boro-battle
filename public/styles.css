@@ -112,6 +112,12 @@ main {
   flex: 1;
 }
 
+#start-btn:disabled {
+  background: var(--yao-line);
+  color: var(--yao-bone-70);
+  cursor: default;
+}
+
 .btn.secondary {
   background: transparent;
   color: var(--yao-bone);
