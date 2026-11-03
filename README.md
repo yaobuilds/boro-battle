@@ -65,6 +65,18 @@ flowchart LR
 - **WebSocket flow:** a client message hits `webSocketMessage`, updates state, persists, then `broadcast` sends each socket a personalized `state` payload.
 - **Trust boundary:** the client is untrusted input. Only the worker applies deadlines and increments scores.
 
+## Changelog
+
+### 1.1.0
+- Questions now compare neighborhoods, using the 2020 NYC neighborhood boundaries, instead of ZIP codes and community boards. Counts are raw complaint totals, not per person.
+
+### 1.0.1
+- "New room" creates and enters the room in one click.
+- The Start button stays greyed out until two players are connected.
+
+### 1.0.0
+- First release: realtime rooms for 2 to 8 players, 10 timed rounds, server-side scoring.
+
 ## License
 
 [MIT](LICENSE). Built by Yao.
