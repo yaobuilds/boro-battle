@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { areaFromPolygons, countPointsByArea } from "./areas";
 import {
   applyAlarm,
   applyAnswer,
@@ -124,6 +125,7 @@ describe("dealDeck", () => {
 describe("publicQuestion", () => {
   it("hides counts and the answer key", () => {
     const q = sampleQuestion("x1", "noise");
+    q.choices[0].areaId = "BK0101";
     const pub = publicQuestion(q);
     assert.deepEqual(pub.choices, [
       { id: "x1-a", label: "A" },
@@ -132,6 +134,53 @@ describe("publicQuestion", () => {
     ]);
     assert.equal("correctChoiceId" in pub, false);
     assert.equal("count" in pub.choices[0], false);
+    assert.equal("areaId" in pub.choices[0], false);
+  });
+});
+
+describe("countPointsByArea", () => {
+  it("counts points inside each area and drops points outside both", () => {
+    const areas = [
+      areaFromPolygons("A", "Alpha, Brooklyn", [
+        {
+          exterior: [
+            [0, 0],
+            [1, 0],
+            [1, 1],
+            [0, 1],
+            [0, 0],
+          ],
+          holes: [],
+        },
+      ]),
+      areaFromPolygons("B", "Beta, Queens", [
+        {
+          exterior: [
+            [2, 0],
+            [3, 0],
+            [3, 1],
+            [2, 1],
+            [2, 0],
+          ],
+          holes: [],
+        },
+      ]),
+    ];
+
+    const counts = countPointsByArea(
+      [
+        { lon: 0.2, lat: 0.2 },
+        { lon: 0.8, lat: 0.8 },
+        { lon: 2.5, lat: 0.4 },
+        { lon: 1.5, lat: 0.5 },
+      ],
+      areas,
+    );
+
+    assert.deepEqual(counts, [
+      { id: "A", label: "Alpha, Brooklyn", count: 2 },
+      { id: "B", label: "Beta, Queens", count: 1 },
+    ]);
   });
 });
 

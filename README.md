@@ -2,7 +2,7 @@
 
 **Play:** https://boro-battle.yaoban.dev
 
-A New York trivia game for 2 to 8 players in the browser. Each of the 10 rounds asks which ZIP had more noise complaints, or which community board had more rodent complaints, in one month of NYC 311 data. The server keeps the 15-second timer and the score.
+A New York trivia game for 2 to 8 players in the browser. Each of the 10 rounds asks which neighborhood had more noise complaints, or which neighborhood had more rodent complaints, in one month of NYC 311 data. The server keeps the 15-second timer and the score.
 
 - One player creates a room. The others join with its four-letter code.
 - The questions are built ahead of time from the [NYC 311 Service Requests](https://data.cityofnewyork.us/Social-Services/311-Service-Requests-from-2010-to-Present/erm2-nwe9) dataset, so a game makes no live data calls.

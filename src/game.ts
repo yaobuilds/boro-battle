@@ -6,6 +6,8 @@ export interface Choice {
   id: string;
   label: string;
   count: number;
+  /** 2020 NTA code. Omitted from client payloads. */
+  areaId?: string;
 }
 
 export interface Question {

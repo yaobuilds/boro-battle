@@ -10,5 +10,5 @@
     "resolveJsonModule": true,
     "types": ["@cloudflare/workers-types"]
   },
-  "include": ["src/index.ts", "src/game.ts", "src/room.ts", "questions.json"]
+  "include": ["src/index.ts", "src/game.ts", "src/areas.ts", "src/room.ts", "questions.json"]
 }
